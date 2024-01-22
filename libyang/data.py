@@ -204,6 +204,7 @@ class DNode:
         """
         self.context = context
         self.cdata = cdata  # C type: "struct lyd_node *"
+        self.cdata_attrs = []  # C tupe: "struct lyd_attr *"
         self.free_func = None  # type: Callable[DNode]
 
     def meta(self):
@@ -250,6 +251,41 @@ class DNode:
         )
         if ret != lib.LY_SUCCESS:
             raise self.context.error("cannot create meta")
+
+    def _get_attr_key(self, cdata_attr):
+        if cdata_attr.name.prefix != ffi.NULL:
+            return f"{c2str(cdata_attr.name.prefix)}:{c2str(cdata_attr.name.name)}"
+
+        return c2str(cdata_attr.name.name)
+
+    def attr(self):
+        ret = {}
+        for attr in self.cdata_attrs:
+            key = self._get_attr_key(attr)
+            ret[key] = c2str(attr.value)
+        return ret
+
+    def new_attr(self, name: str, value: str):
+        attrs = ffi.new("struct lyd_attr **")
+        ret = lib.lyd_new_attr(
+            self.cdata,
+            ffi.NULL,
+            str2c(name),
+            str2c(value),
+            attrs,
+        )
+        if ret != lib.LY_SUCCESS:
+            raise self.context.error("cannot create attr")
+        self.cdata_attrs.append(attrs[0])
+
+    def attr_free(self, name):
+        for attr in self.cdata_attrs:
+            key = self._get_attr_key(attr)
+
+            if name == key:
+                lib.lyd_free_attr_single(self.context.cdata, attr)
+                self.cdata_attrs.remove(attr)
+                break
 
     def add_defaults(
         self,

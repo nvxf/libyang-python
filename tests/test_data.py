@@ -871,3 +871,46 @@ class DataTest(unittest.TestCase):
         opaq_hostname = dnode.find_one("hostname")
 
         self.assertIsInstance(opaq_hostname, DLeaf)
+
+    def test_attr(self):
+        dnode = self.ctx.parse_data_mem(self.JSON_CONFIG, "json", validate_present=True)
+
+        hostname = dnode.find_one("hostname")
+        hostname.free(with_siblings=False)
+
+        dnode.new_path("/yolo-system:conf/hostname", value=None, opt_opaq=True)
+        opaq_hostname = dnode.find_one("hostname")
+
+        with self.assertRaises(LibyangError):
+            opaq_hostname.new_attr(None, "value")
+
+        self.assertEqual(opaq_hostname.attr(), {})
+
+        opaq_hostname.new_attr("yang:operation", "remove")
+        self.assertEqual(opaq_hostname.attr(), {"yang:operation": "remove"})
+
+        opaq_hostname.new_attr("ietf-netconf:operation", "remove")
+        self.assertEqual(
+            opaq_hostname.attr(),
+            {"yang:operation": "remove", "ietf-netconf:operation": "remove"},
+        )
+
+        opaq_hostname.new_attr("some_attribute", "some_value")
+        self.assertEqual(
+            opaq_hostname.attr(),
+            {
+                "yang:operation": "remove",
+                "ietf-netconf:operation": "remove",
+                "some_attribute": "some_value",
+            },
+        )
+
+        opaq_hostname.attr_free("ietf-netconf:operation")
+        self.assertEqual(
+            opaq_hostname.attr(),
+            {"yang:operation": "remove", "some_attribute": "some_value"},
+        )
+
+        opaq_hostname.attr_free("yang:operation")
+        opaq_hostname.attr_free("some_attribute")
+        self.assertEqual(opaq_hostname.attr(), {})
